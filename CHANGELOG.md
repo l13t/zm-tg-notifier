@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/l13t/zm-tg-notifier/compare/v1.0.2...v1.0.3) (2026-04-14)
+
+
+### Bug Fixes
+
+* Enforced file name to sent file ([6d74e83](https://github.com/l13t/zm-tg-notifier/commit/6d74e83e95a9db84c18c89dedcc986d4bc512065))
+
 ## [1.0.2](https://github.com/l13t/zm-tg-notifier/compare/v1.0.1...v1.0.2) (2026-04-14)
 
 
