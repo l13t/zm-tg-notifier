@@ -184,13 +184,14 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 	// If incomplete.mp4 is already gone, wait for the file to stabilize then send
 	if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
 		go func() {
-			if err := h.waitForStableSize(ctx, path); err != nil {
+			size, err := h.waitForStableSize(ctx, path)
+			if err != nil {
 				slog.Error("video file not ready on create", "event_id", eventID, "path", path, "error", err)
 				return
 			}
-			slog.Info("video ready immediately, no incomplete marker", "event_id", eventID, "path", path)
+			slog.Info("video ready immediately, no incomplete marker", "event_id", eventID, "path", path, "size_bytes", size)
 			h.events.Store(eventID, true)
-			h.sendVideo(ctx, path)
+			h.sendVideo(ctx, path, size)
 		}()
 		return
 	}
@@ -206,13 +207,14 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 			default:
 			}
 			if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
-				if err := h.waitForStableSize(ctx, path); err != nil {
+				size, err := h.waitForStableSize(ctx, path)
+				if err != nil {
 					slog.Error("video file not ready after incomplete marker gone", "event_id", eventID, "path", path, "error", err)
 					return
 				}
-				slog.Info("incomplete marker gone, sending video", "event_id", eventID, "path", path)
+				slog.Info("incomplete marker gone, sending video", "event_id", eventID, "path", path, "size_bytes", size)
 				h.events.Store(eventID, true)
-				h.sendVideo(ctx, path)
+				h.sendVideo(ctx, path, size)
 				return
 			}
 			if time.Now().After(deadline) {
@@ -224,35 +226,28 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 	}()
 }
 
-func (h *EventHandler) waitForStableSize(ctx context.Context, path string) error {
+func (h *EventHandler) waitForStableSize(ctx context.Context, path string) (int64, error) {
 	var prevSize int64 = -1
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return 0, ctx.Err()
 		default:
 		}
 		info, err := os.Stat(path)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if info.Size() > 0 && info.Size() == prevSize {
-			return nil
+			return info.Size(), nil
 		}
 		prevSize = info.Size()
 		time.Sleep(2 * time.Second)
 	}
 }
 
-func (h *EventHandler) sendVideo(ctx context.Context, path string) {
-	slog.Info("sending video", "path", path, "chat_count", len(h.chatIDs))
-
-	if info, err := os.Stat(path); err != nil {
-		slog.Warn("video file not accessible", "path", path, "error", err)
-		return
-	} else {
-		slog.Info("video file ready", "path", path, "size_bytes", info.Size())
-	}
+func (h *EventHandler) sendVideo(ctx context.Context, path string, sizeBytes int64) {
+	slog.Info("sending video", "path", path, "size_bytes", sizeBytes, "chat_count", len(h.chatIDs))
 
 	var wg sync.WaitGroup
 	for _, chatID := range h.chatIDs {
@@ -260,11 +255,18 @@ func (h *EventHandler) sendVideo(ctx context.Context, path string) {
 		go func(id int64) {
 			defer wg.Done()
 
-			video := tgbotapi.NewVideo(id, tgbotapi.FilePath(path))
+			f, err := os.Open(path)
+			if err != nil {
+				slog.Error("failed to open video file", "chat_id", id, "path", path, "error", err)
+				return
+			}
+			defer f.Close()
+
+			video := tgbotapi.NewVideo(id, tgbotapi.FileReader{Name: "video.mp4", Reader: f})
 			if _, err := h.bot.Send(video); err != nil {
-				slog.Error("failed to send video", "chat_id", id, "path", path, "error", err)
+				slog.Error("failed to send video", "chat_id", id, "path", path, "size_bytes", sizeBytes, "error", err)
 			} else {
-				slog.Info("video sent", "chat_id", id, "path", path)
+				slog.Info("video sent", "chat_id", id, "path", path, "size_bytes", sizeBytes)
 			}
 		}(chatID)
 	}
