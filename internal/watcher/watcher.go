@@ -179,20 +179,41 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 		return
 	}
 
-	// Wait for video to be completely written
+	incompletePath := filepath.Join(filepath.Dir(path), "incomplete.mp4")
+
+	// If incomplete.mp4 is already gone, the video is ready now (e.g. renamed into place)
+	if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
+		slog.Info("video ready immediately, no incomplete marker", "event_id", eventID, "path", path)
+		h.events.Store(eventID, true)
+		go h.sendVideo(ctx, path)
+		return
+	}
+
+	// Wait for incomplete.mp4 to disappear (ZoneMinder removes it when recording is done)
 	go func() {
 		slog.Info("waiting for video write to complete", "event_id", eventID, "path", path)
+		deadline := time.Now().Add(10 * time.Minute)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				if _, exists := h.events.Load(eventID); exists {
-					h.sendVideo(ctx, path)
-					return
-				}
-				time.Sleep(2 * time.Second)
 			}
+			if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
+				if _, err := os.Stat(path); err == nil {
+					slog.Info("incomplete marker gone, sending video", "event_id", eventID, "path", path)
+					h.events.Store(eventID, true)
+					h.sendVideo(ctx, path)
+				} else {
+					slog.Error("video file missing after incomplete marker gone", "event_id", eventID, "path", path, "error", err)
+				}
+				return
+			}
+			if time.Now().After(deadline) {
+				slog.Error("timeout waiting for incomplete marker to disappear", "event_id", eventID, "incomplete_path", incompletePath)
+				return
+			}
+			time.Sleep(2 * time.Second)
 		}
 	}()
 }
