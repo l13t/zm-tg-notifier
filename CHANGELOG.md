@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/l13t/zm-tg-notifier/compare/v1.0.0...v1.0.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* Waiting until `incomplete.mp4` is removed ([a4671ee](https://github.com/l13t/zm-tg-notifier/commit/a4671eea8a1ca4385f472e334a1149d573181c4a))
+
 ## 1.0.0 (2026-04-14)
 
 
