@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/l13t/zm-tg-notifier/compare/v1.0.1...v1.0.2) (2026-04-14)
+
+
+### Bug Fixes
+
+* Added stable size check ([3254f4d](https://github.com/l13t/zm-tg-notifier/commit/3254f4d4cdfc4857d8744fc102849abf31ae9b07))
+
 ## [1.0.1](https://github.com/l13t/zm-tg-notifier/compare/v1.0.0...v1.0.1) (2026-04-14)
 
 
