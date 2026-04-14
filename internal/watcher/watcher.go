@@ -181,11 +181,17 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 
 	incompletePath := filepath.Join(filepath.Dir(path), "incomplete.mp4")
 
-	// If incomplete.mp4 is already gone, the video is ready now (e.g. renamed into place)
+	// If incomplete.mp4 is already gone, wait for the file to stabilize then send
 	if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
-		slog.Info("video ready immediately, no incomplete marker", "event_id", eventID, "path", path)
-		h.events.Store(eventID, true)
-		go h.sendVideo(ctx, path)
+		go func() {
+			if err := h.waitForStableSize(ctx, path); err != nil {
+				slog.Error("video file not ready on create", "event_id", eventID, "path", path, "error", err)
+				return
+			}
+			slog.Info("video ready immediately, no incomplete marker", "event_id", eventID, "path", path)
+			h.events.Store(eventID, true)
+			h.sendVideo(ctx, path)
+		}()
 		return
 	}
 
@@ -200,13 +206,13 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 			default:
 			}
 			if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
-				if _, err := os.Stat(path); err == nil {
-					slog.Info("incomplete marker gone, sending video", "event_id", eventID, "path", path)
-					h.events.Store(eventID, true)
-					h.sendVideo(ctx, path)
-				} else {
-					slog.Error("video file missing after incomplete marker gone", "event_id", eventID, "path", path, "error", err)
+				if err := h.waitForStableSize(ctx, path); err != nil {
+					slog.Error("video file not ready after incomplete marker gone", "event_id", eventID, "path", path, "error", err)
+					return
 				}
+				slog.Info("incomplete marker gone, sending video", "event_id", eventID, "path", path)
+				h.events.Store(eventID, true)
+				h.sendVideo(ctx, path)
 				return
 			}
 			if time.Now().After(deadline) {
@@ -216,6 +222,26 @@ func (h *EventHandler) onCreated(ctx context.Context, path string) {
 			time.Sleep(2 * time.Second)
 		}
 	}()
+}
+
+func (h *EventHandler) waitForStableSize(ctx context.Context, path string) error {
+	var prevSize int64 = -1
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		if info.Size() > 0 && info.Size() == prevSize {
+			return nil
+		}
+		prevSize = info.Size()
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func (h *EventHandler) sendVideo(ctx context.Context, path string) {
