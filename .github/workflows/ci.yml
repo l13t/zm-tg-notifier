@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  # test:
+  #   name: Test
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       go-version: ["1.26"]
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v6
+
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v6
+  #       with:
+  #         go-version: ${{ matrix.go-version }}
+
+  #     - name: Cache Go modules
+  #       uses: actions/cache@v5
+  #       with:
+  #         path: ~/go/pkg/mod
+  #         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-go-
+
+  #     - name: Download dependencies
+  #       run: go mod download
+
+  #     - name: Run tests
+  #       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  #     - name: Upload coverage to Codecov
+  #       uses: codecov/codecov-action@v6
+  #       with:
+  #         files: ./coverage.txt
+  #         flags: unittests
+  #         name: codecov-umbrella
+  #         fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+
+      - name: Build binary
+        run: make build VERSION=pr-${{ github.event.pull_request.number || github.sha }}
+
+      - name: Test binary runs
+        run: ./zm-tg-notifier -version
