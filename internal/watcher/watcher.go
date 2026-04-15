@@ -260,7 +260,11 @@ func (h *EventHandler) sendVideo(ctx context.Context, path string, sizeBytes int
 				slog.Error("failed to open video file", "chat_id", id, "path", path, "error", err)
 				return
 			}
-			defer f.Close()
+			defer func() {
+					if err := f.Close(); err != nil {
+						slog.Error("failed to close video file", "chat_id", id, "path", path, "error", err)
+					}
+				}()
 
 			video := tgbotapi.NewVideo(id, tgbotapi.FileReader{Name: "video.mp4", Reader: f})
 			if _, err := h.bot.Send(video); err != nil {
