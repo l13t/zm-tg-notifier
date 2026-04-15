@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/l13t/zm-tg-notifier/compare/v1.0.3...v1.0.4) (2026-04-15)
+
+
+### Bug Fixes
+
+* check error return value of f.Close in sendVideo goroutine ([5e2e953](https://github.com/l13t/zm-tg-notifier/commit/5e2e953e0059fd7d74138cac3be0cc9c98f8affc))
+
 ## [1.0.3](https://github.com/l13t/zm-tg-notifier/compare/v1.0.2...v1.0.3) (2026-04-14)
 
 
